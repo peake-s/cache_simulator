@@ -1,6 +1,6 @@
 import bitstring as bs 
 from bitstring import BitArray
-from math import log
+from math import log,pow
 import sys
 import argparse
 import pandas as pd
@@ -23,15 +23,17 @@ class cache:
         self.block_size = block_size
         self.num_blocks = num_blocks
         self._addr_structure(self.block_size,self.num_blocks,associativity)
-        self.cache = self._create_cache(num_blocks,32)
-        self.size = num_blocks * block_size
+        self.size = int(pow(2,num_blocks))
+        self.cache = self._create_cache(self.num_blocks*block_size,(self.block_size+1+self.tag_bits))
+        print(self.tag_bits)
         self._check_validity(associativity,num_blocks,self.num_sets)
 
     def _addr_structure(self,block_size,num_blocks,associativity=1):
         valid_bits = 1
         #addr_size = log(num_blocks,2)
         addr_size =32
-        self.offset = int(log(block_size,2))
+        #self.offset = int(log(block_size,2))
+        self.offset = int(num_blocks/block_size)
         if associativity == 1:
             self.num_sets = num_blocks
         elif associativity == 2:
@@ -39,13 +41,14 @@ class cache:
         
         #[]
         self.index_bits = int(log(self.num_sets,2))
-        self.tag_bits = addr_size - self.index_bits - self.offset - valid_bits
+        self.tag_bits = addr_size - self.index_bits - self.offset 
         #row_len = block_size + self.tag_bits + self.index_bits + valid_bits
 
     def _create_cache(self,num_blocks,row_len):
         #2d cache data structure with all rows init to 0's
         return [BitArray(row_len) for i in range(num_blocks)]
-    
+        #return [BitArray(row_len)] * num_blocks
+
     def _check_validity(self,asc,nb,ns):
         if asc*ns != nb:
             print("invalid number of blocks")
@@ -59,8 +62,9 @@ class cache:
 
     def _check_valid_bit(self,idx):
         vb = self.cache[idx][0]
-
+        
         if vb:
+            #self.cache[idx][0] = 0
             return True
         else:
             self.misses += 1
@@ -69,29 +73,35 @@ class cache:
 
     def _check_tag(self,idx,tag):
         act_tag = self.cache[idx][1:self.tag_bits+1]
-
-        if tag == act_tag:
+        #print(self.cache[idx][1:self.tag_bits+1])
+        #print(f"act tag: {act_tag.i} tag: {tag}")
+        if tag == act_tag.i:
             self.hits += 1
+            #self.cache[idx][1:self.tag_bits+1] = BitArray(int=tag,length=self.tag_bits)
         else:
             self.misses += 1
-            self.cache[idx][1:self.tag_bits+1] = tag
+            self.cache[idx][1:self.tag_bits+1] = BitArray(int=tag,length=self.tag_bits)
 
     def _find_tag(self,address):
-        return address/(self.num_sets*self.block_size)
+        return address/(self.num_blocks*self.block_size)
 
     def cache_read(self,address):
         #find address
         block_addr = int(self._block_addr(address))
+        #print(f"ba: {block_addr}")
         #go to line number
         index = int(self._index(block_addr))
+        #print(index)
         tag = int(self._find_tag(address))
         #check valid bit
         vb = self._check_valid_bit(index)
+        #print(f"idx: {index} vb: {vb}")
         #if 0, cache miss
         #set valid bit to 1
         #set tag
         if vb:
             self._check_tag(index,tag)
+    
     
     def read_all(self,addr_list):
         for addr in addr_list:
@@ -106,7 +116,7 @@ class cache:
 
         print(f"Reads: {cache_reads}")
         print(f"Hits: {self.hits}")
-        print(f"Hits: {self.misses}")
+        print(f"Misses: {self.misses}")
         print(f"Hit rate: {(hit_ratio*100):.2f}%")
         print(f"Miss rate: {(miss_ratio*100):.2f}%")
 
