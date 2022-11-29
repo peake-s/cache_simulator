@@ -4,6 +4,7 @@ from math import log,pow
 import sys
 import argparse
 import pandas as pd
+
 class cache:
     def __init__(self,block_size=16,num_blocks=16,associativity = 1):
         #2d cache data structure with all rows init to 0's
@@ -19,13 +20,12 @@ class cache:
         self.address_size = 32
         self.hits = 0
         self.misses = 0
-        self.num_reads = 0
+        self.associativity = associativity
         self.block_size = block_size
         self.num_blocks = num_blocks
         self._addr_structure(self.block_size,self.num_blocks,associativity)
         self.size = int(pow(2,num_blocks))
         self.cache = self._create_cache(self.num_blocks*block_size,(self.block_size+1+self.tag_bits))
-        print(self.tag_bits)
         self._check_validity(associativity,num_blocks,self.num_sets)
 
     def _addr_structure(self,block_size,num_blocks,associativity=1):
@@ -85,28 +85,30 @@ class cache:
     def _find_tag(self,address):
         return address/(self.num_blocks*self.block_size)
 
-    def cache_read(self,address):
+    def cache_read_direct(self,address):
         #find address
         block_addr = int(self._block_addr(address))
-        #print(f"ba: {block_addr}")
         #go to line number
         index = int(self._index(block_addr))
-        #print(index)
         tag = int(self._find_tag(address))
         #check valid bit
         vb = self._check_valid_bit(index)
-        #print(f"idx: {index} vb: {vb}")
         #if 0, cache miss
         #set valid bit to 1
         #set tag
         if vb:
             self._check_tag(index,tag)
+            
     
-    
-    def read_all(self,addr_list):
-        for addr in addr_list:
-            self.cache_read(int(addr,base=16))
+    def read_assoc(self,addr):
+        pass
 
+    def read_all(self,addr_list):
+        if self.associativity == 1:
+            [self.cache_read_direct(int(addr,base=16)) for addr in addr_list]
+        else:
+            [self.read_assoc(int(addr,base=16)) for addr in addr_list]
+        
         cache_reads = len(addr_list)
         self.results(cache_reads)
 
