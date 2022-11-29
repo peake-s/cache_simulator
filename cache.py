@@ -71,19 +71,29 @@ class cache:
             self.cache[idx][0] = 1
             return False
 
-    def _check_tag(self,idx,tag):
+    def _check_tag(self,idx,tag,address):
         act_tag = self.cache[idx][1:self.tag_bits+1]
         #print(self.cache[idx][1:self.tag_bits+1])
         #print(f"act tag: {act_tag.i} tag: {tag}")
         if tag == act_tag.i:
             self.hits += 1
             #self.cache[idx][1:self.tag_bits+1] = BitArray(int=tag,length=self.tag_bits)
+            print(f"{address}:{self.cache[idx][1:self.tag_bits+1]}")
         else:
             self.misses += 1
             self.cache[idx][1:self.tag_bits+1] = BitArray(int=tag,length=self.tag_bits)
 
     def _find_tag(self,address):
         return address/(self.num_blocks*self.block_size)
+
+    def _input(self,address,idx):
+        addr = f"{hex(address)}"
+        x = (self.valid_bit+self.tag_bits) + ((len(addr))*4)
+        print(x)
+        print(self.cache[idx][(self.valid_bit+self.tag_bits):x])
+        #print((len(addr)-2)*4)
+        #print(BitArray(addr))
+        self.cache[idx][(self.valid_bit+self.tag_bits):(((len(addr)-2)*4))] = BitArray(addr)
 
     def cache_read_direct(self,address):
         #find address
@@ -97,8 +107,10 @@ class cache:
         #set valid bit to 1
         #set tag
         if vb:
-            self._check_tag(index,tag)
-            
+            self._check_tag(index,tag,address)
+            #print(f"{address}:{self.cache[index][1:self.tag_bits+1]}")
+        else:
+            self._input(address,index)
     
     def read_assoc(self,addr):
         pass
