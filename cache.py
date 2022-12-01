@@ -46,8 +46,14 @@ class cache:
 
     def _create_cache(self,num_blocks,row_len):
         #2d cache data structure with all rows init to 0's
+        arr = [0]*num_blocks
+        cache = {
+            'valid':arr,
+            'tag':arr,
+            'data':arr
+            }
         return [BitArray(row_len) for i in range(num_blocks)]
-        #return [BitArray(row_len)] * num_blocks
+        #return cache
 
     def _check_validity(self,asc,nb,ns):
         if asc*ns != nb:
@@ -61,39 +67,43 @@ class cache:
         return block_addr%self.num_sets
 
     def _check_valid_bit(self,idx):
-        vb = self.cache[idx][0]
-        
+        #vb = self.cache[idx][0]
+        vb = self.cache['valid'][idx]
         if vb:
             #self.cache[idx][0] = 0
             return True
         else:
             self.misses += 1
-            self.cache[idx][0] = 1
+            #self.cache[idx][0] = 1
+            self.cache['valid'][idx] = 1
             return False
 
     def _check_tag(self,idx,tag,address):
-        act_tag = self.cache[idx][1:self.tag_bits+1]
+        #act_tag = self.cache[idx][1:self.tag_bits+1]
+        act_tag = self.cache['tag'][idx]
         #print(self.cache[idx][1:self.tag_bits+1])
         #print(f"act tag: {act_tag.i} tag: {tag}")
-        if tag == act_tag.i:
+        if tag == act_tag:
             self.hits += 1
             #self.cache[idx][1:self.tag_bits+1] = BitArray(int=tag,length=self.tag_bits)
-            print(f"{address}:{self.cache[idx][1:self.tag_bits+1]}")
+            #print(f"{address}:{self.cache[idx][1:self.tag_bits+1]}")
         else:
             self.misses += 1
-            self.cache[idx][1:self.tag_bits+1] = BitArray(int=tag,length=self.tag_bits)
+            self.cache['tag'][idx] = tag
+            #self.cache[idx][1:self.tag_bits+1] = BitArray(int=tag,length=self.tag_bits)
 
     def _find_tag(self,address):
         return address/(self.num_blocks*self.block_size)
 
     def _input(self,address,idx):
         addr = f"{hex(address)}"
-        x = (self.valid_bit+self.tag_bits) + ((len(addr))*4)
-        print(x)
-        print(self.cache[idx][(self.valid_bit+self.tag_bits):x])
+        #x = (self.valid_bit+self.tag_bits) + ((len(addr))*4)
+        #print(x)
+        #print(self.cache[idx][(self.valid_bit+self.tag_bits):x])
         #print((len(addr)-2)*4)
         #print(BitArray(addr))
-        self.cache[idx][(self.valid_bit+self.tag_bits):(((len(addr)-2)*4))] = BitArray(addr)
+        #self.cache[idx][(self.valid_bit+self.tag_bits):(((len(addr)-2)*4))] = BitArray(addr)
+        self.cache['tag'][idx] = addr
 
     def cache_read_direct(self,address):
         #find address
@@ -133,6 +143,8 @@ class cache:
         print(f"Misses: {self.misses}")
         print(f"Hit rate: {(hit_ratio*100):.2f}%")
         print(f"Miss rate: {(miss_ratio*100):.2f}%")
+
+        print(self.cache)
 
 
 def read_addr_file(file):
