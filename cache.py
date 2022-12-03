@@ -25,7 +25,7 @@ class cache:
         self.num_blocks = num_blocks
         self._addr_structure(self.block_size,self.num_blocks,associativity)
         self.size = int(pow(2,num_blocks))
-        self.cache = self._create_cache(self.num_blocks*block_size,(self.block_size+1+self.tag_bits))
+        self.cache = self._create_cache(self.num_blocks*block_size,((self.block_size*8)+1+self.tag_bits))
         self._check_validity(associativity,num_blocks,self.num_sets)
 
     def _addr_structure(self,block_size,num_blocks,associativity=1):
@@ -78,7 +78,7 @@ class cache:
         if tag == act_tag.i:
             self.hits += 1
             #self.cache[idx][1:self.tag_bits+1] = BitArray(int=tag,length=self.tag_bits)
-            print(f"{address}:{self.cache[idx][1:self.tag_bits+1]}")
+            #print(f"{address}:{self.cache[idx][1:self.tag_bits+1]}")
         else:
             self.misses += 1
             self.cache[idx][1:self.tag_bits+1] = BitArray(int=tag,length=self.tag_bits)
@@ -89,11 +89,11 @@ class cache:
     def _input(self,address,idx):
         addr = f"{hex(address)}"
         x = (self.valid_bit+self.tag_bits) + ((len(addr))*4)
-        print(x)
-        print(self.cache[idx][(self.valid_bit+self.tag_bits):x])
+        print(f"tag + valid {self.tag_bits+self.valid_bit}")
+        print(self.cache[idx][(self.valid_bit+self.tag_bits):-1])
         #print((len(addr)-2)*4)
         #print(BitArray(addr))
-        self.cache[idx][(self.valid_bit+self.tag_bits):(((len(addr)-2)*4))] = BitArray(addr)
+        self.cache[idx][(self.valid_bit+self.tag_bits+(len(addr)-2)*4):-1] = BitArray(addr)
 
     def cache_read_direct(self,address):
         #find address
@@ -117,7 +117,7 @@ class cache:
 
     def read_all(self,addr_list):
         if self.associativity == 1:
-            [self.cache_read_direct(int(addr,base=16)) for addr in addr_list]
+            [self.cache_read_direct(int(addr,base=16)*4) for addr in addr_list]
         else:
             [self.read_assoc(int(addr,base=16)) for addr in addr_list]
         
@@ -134,6 +134,7 @@ class cache:
         print(f"Hit rate: {(hit_ratio*100):.2f}%")
         print(f"Miss rate: {(miss_ratio*100):.2f}%")
 
+        print(self.cache)
 
 def read_addr_file(file):
     addr = pd.read_csv(file, delimiter=' ', header=None)
