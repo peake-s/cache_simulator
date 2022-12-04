@@ -27,7 +27,7 @@ class cache:
         if associativity == 1:
             df = {
               'index': [(bin(i)[2:].zfill(self.idx_sz)) for i in range(num_blocks)],
-              'valid':[bin(0)[2:] for i in range(num_blocks)], 
+              'valid':[0 for i in range(num_blocks)], 
               'tag': [(bin(0)[2:].zfill(self.tag_sz)) for i in range(num_blocks)], 
               'data': [(bin(0)[2:].zfill(self.block_sz)) for i in range(num_blocks)],
              }
@@ -45,7 +45,7 @@ class cache:
              }
         else:
             tags = [[(bin(0)[2:].zfill(self.tag_sz))]*associativity] * num_sets
-            valid = [[(bin(0)[2:])]*associativity] * num_sets
+            valid = [[(0)]*associativity] * num_sets
             data = [[(bin(0)[2:].zfill(self.block_sz))]*associativity] * num_sets
             df = {
               'index': [(bin(i)[2:].zfill(self.idx_sz))for i in range(int(num_blocks/associativity))],
@@ -79,26 +79,66 @@ class direct_mapped():
         return block_addr%self.num_blocks  
     
     def _check_valid_bit(self,idx)-> bool:
-        vb = self.cache.at[idx, 'index']
+        vb = self.cache.cache.at[idx, 'valid']
 
         if vb:
             return True
         else:
             self.misses += 1
-            self.cache.at[idx, 'index'] = 1
+            self.cache.cache.at[idx, 'valid'] = 1
             return False
 
-    def _check_tag(self,idx,tag):
-        actual_tag = self.cache.at[idx,'tag']
-        if actual_tag == tag:
+    def _check_tag(self,idx,tag) -> bool:
+        actual_tag = self.cache.cache.at[idx,'tag']
+
+        tag2 = bin(tag)[2:].zfill(self.tag)
+        #print(f"act {actual_tag} tag: {tag2}")
+        if actual_tag == tag2:
             self.hits += 1
+            return True
         else:
             self.misses += 1
-            self.cache.at[idx,'tag'] = tag
+            self.cache.cache.at[idx,'tag'] = tag2
+            return False
 
     def _find_tag(self,address)->int:
         return int(address/(self.num_blocks*self.block_size))
+
+    def _input_data(self,addr,idx):
+        self.cache.cache.at[idx, 'data'] = addr
         
+    def direct_read(self,address):
+        block_addr = self._block_addr(address)
+        index = int(self._index(block_addr))
+        tag = int(self._find_tag(address))
+        vb = self._check_valid_bit(index)
+
+        if vb == 1:
+            if not self._check_tag(index,tag):
+                self._input_data(address,index)
+            
+            #print(f"{address}:{self.cache[index][1:self.tag_bits+1]}")
+        else:
+            self._input_data(address,index)
+    
+    def read_all(self,addr_list):
+        [self.direct_read(int(add,base=16)) for add in addr_list]
+
+        cache_reads = len(addr_list)
+        self.results(cache_reads)
+    
+    def results(self,cache_reads):
+        hit_ratio = self.hits/cache_reads
+        miss_ratio = 1 - hit_ratio
+
+        print(f"Reads: {cache_reads}")
+        print(f"Hits: {self.hits}")
+        print(f"Misses: {self.misses}")
+        print(f"Hit rate: {(hit_ratio*100):.2f}%")
+        print(f"Miss rate: {(miss_ratio*100):.2f}%")
+
+        print(self.cache.cache)
+
 
 class associativity():
     def __init__(self):
@@ -118,8 +158,8 @@ def main(argv):
     parser.add_argument("-m","--miss_time")
     parser.add_argument("-l","--lru")
     args = parser.parse_args()
-    block_size = args.block_size
-    num_block = args.num_blocks
+    block_size = int(args.block_size)
+    num_block = int(args.num_blocks)
     associativity = args.associativity
     hit_time = args.hit_time
     miss_time = args.miss_time
@@ -129,8 +169,11 @@ def main(argv):
     tsz = 32 -isz -off
     address_data = read_addr_file(args.input_file)
 
-    c = cache(16,2,isz,tsz,off,int(args.block_size),'LRU')
-    print(c.cache)
+    dm = direct_mapped(block_size=block_size,num_blocks=num_block)
+    dm.read_all(address_data)
+
+    #c = cache(16,2,isz,tsz,off,int(args.block_size),'LRU')
+    #print(c.cache)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
