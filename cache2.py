@@ -41,7 +41,7 @@ class cache:
               'index': [(bin(i)[2:].zfill(self.idx_sz))for i in range(int(num_blocks/associativity))],
               'valid':valid, 
               'tag': tags, 
-              'LRU': LRU,
+              'lru': LRU,
               'data': data
              }
         else:
@@ -183,8 +183,22 @@ class set_mapped():
     def _find_tag(self,address)->int:
         return int(address/(self.num_blocks*self.block_size))
 
-    def lru(self):
-        pass
+    def _lru_inc(self):
+        lru_arr = self.cache.cache.at[idx,'lru']
+        for idx,_ in enumerate(lru_arr):
+            inc = lru_arr[idx]+1
+            self.cache.cache.at[idx,'lru'][idx] = inc if inc < self.LRU_max else lru_arr[idx]
+
+    def lru(self,tag,idx,addr):
+        #find lru value with the highest value
+        #replace said value
+        #increment all counters and ensure none go over max
+        #reset counter of replaced to 0
+        expired_idx = self.cache.cache.at[idx,'lru'].index(max(self.cache.cache.at[idx,'lru']))
+        self.cache.cache.at[idx,'tag'][expired_idx] = tag
+        self.cache.cache.at[idx,'data'][expired_idx] = addr
+        self._lru_inc()
+        self.cache.cache.at[idx,'lru'][expired_idx] = 0
 
     #return the location in the block to replace
     def random(self,tag,idx,addr):
@@ -206,6 +220,7 @@ class set_mapped():
         #print(f"act {actual_tag} tag: {tag2}")
         if len(idxs)> 0 and idxs[0] in valid_locs:
             self.hits += 1
+            self._lru_inc()
             return True
         else:
             self.misses += 1
