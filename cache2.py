@@ -1,5 +1,6 @@
 import pandas as pd
 from math import log,pow
+from random import randint
 import numpy as np
 import sys
 import argparse
@@ -137,8 +138,100 @@ class direct_mapped():
         print(f"Hit rate: {(hit_ratio*100):.2f}%")
         print(f"Miss rate: {(miss_ratio*100):.2f}%")
 
-        print(self.cache.cache)
+        #print(self.cache.cache)
 
+class set_mapped():
+    def __init__(self,block_size =1, num_blocks =16,associativity=2, LRU = None):
+        self.size = num_blocks*block_size
+        self.num_lines = int(self.size/int(associativity*block_size))
+        self.offset = int(num_blocks/block_size)
+        self.index = int(log(self.num_lines,2)) if not (associativity == num_blocks) else 0
+        self.valid_bits = 1
+        self.associativity = associativity
+        self.replacement_policy = 'LRU' if self.associativity <= 4 or LRU is 1 else 'random'
+        self.LRU_max = associativity
+        self.block_size = block_size
+        self.num_blocks = num_blocks
+        self.hits = 0
+        self.misses = 0
+        #address bits always 32
+        addr_size = 32
+        self.tag = addr_size - self.index - self.offset
+        self.cache = cache(self.num_blocks,self.associativity,self.index,
+                           self.tag,self.offset,self.block_size,replacement_policy =self.replacement_policy)
+        
+    def _block_addr(self,address) -> int:
+        return int(address/self.block_size)
+    
+    def _index(self,block_addr) -> int:
+        return block_addr%self.num_lines  
+    
+    def _check_valid_bit(self,idx)-> bool:
+        vb_arr = self.cache.cache.at[idx, 'valid']
+        #print(vb_arr)
+        idx_arr = np.where(np.array(vb_arr) == 1)[0]
+        #print(np.where(vb_arr == 1)[0])
+        
+        if len(idx_arr) > 0:
+            return True,idx_arr
+        else:
+            self.misses += 1
+            self.cache.cache.at[idx, 'valid'] = [1]*len(vb_arr)
+            #print(self.cache.cache.at[idx, 'valid'])
+            return False,idx_arr
+
+    def _find_tag(self,address)->int:
+        return int(address/(self.num_blocks*self.block_size))
+
+    def lru(self):
+        pass
+
+    #return the location in the block to replace
+    def random(self,tag,idx,addr):
+        loc = randint(0,self.associativity-1)
+        self.cache.cache.at[idx,'tag'][loc] = tag
+        self.cache.cache.at[idx,'data'][loc] = addr
+
+    def replace(self,tag,idx,addr):
+        if self.replacement_policy == 'LRU': 
+            self.lru()
+        else:
+            self.random(tag,idx,addr)
+
+    def _check_tag(self,idx,tag,valid_locs) -> bool:
+        actual_tags = self.cache.cache.at[idx,'tag']
+        tag2 = bin(tag)[2:].zfill(self.tag)
+        idxs = np.where(np.array(actual_tags)==tag2)[0]
+        print(idxs)
+        #print(f"act {actual_tag} tag: {tag2}")
+        if len(idxs)> 0 and idxs[0] in valid_locs:
+            self.hits += 1
+            return True
+        else:
+            self.misses += 1
+            #replacement policy here
+            #self.cache.cache.at[idx,'tag'][idxs[0]] = tag2
+            return False
+
+    def set_read(self,address):
+        block_addr = self._block_addr(address)
+        index = int(self._index(block_addr))
+        tag = int(self._find_tag(address))
+        vb,idx_arr = self._check_valid_bit(index)
+        #print(f"vb {vb} i {idx_arr}")
+        if vb:
+            if not self._check_tag(index,tag,idx_arr):
+                #self._input_data(address,index)
+                pass
+            #print(f"{address}:{self.cache[index][1:self.tag_bits+1]}")
+        #else:
+            #self._input_data(address,index)
+    
+    def read_all(self,addr_list):
+        [self.set_read(int(add,base=16)) for add in addr_list]
+
+        cache_reads = len(addr_list)
+        #self.results(cache_reads)
 
 class associativity():
     def __init__(self):
@@ -160,20 +253,17 @@ def main(argv):
     args = parser.parse_args()
     block_size = int(args.block_size)
     num_block = int(args.num_blocks)
-    associativity = args.associativity
+    associativity = int(args.associativity)
     hit_time = args.hit_time
     miss_time = args.miss_time
-    lru = args.lru
-    isz=int(log(int(int(args.num_blocks)/int(args.associativity)),2))
-    off = int(int(args.num_blocks)/int(args.block_size))
-    tsz = 32 -isz -off
+    lru = int(args.lru)
+
     address_data = read_addr_file(args.input_file)
 
-    dm = direct_mapped(block_size=block_size,num_blocks=num_block)
-    dm.read_all(address_data)
-
-    #c = cache(16,2,isz,tsz,off,int(args.block_size),'LRU')
-    #print(c.cache)
+    #dm = direct_mapped(block_size=block_size,num_blocks=num_block)
+    #dm.read_all(address_data)
+    sm = set_mapped(block_size=block_size,num_blocks=num_block,associativity=associativity,LRU = args.lru)
+    sm.read_all(address_data)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
