@@ -33,8 +33,9 @@ class cache:
               'data': [(bin(0)[2:].zfill(self.block_sz)) for i in range(num_blocks)],
              }
         elif associativity > 1 and replacement_policy == 'LRU':
-            tags = [([(bin(0)[2:].zfill(self.tag_sz))]*associativity) for _ in range(num_sets)] 
-            valid = [([(bin(0)[2:])]*associativity) for _ in range(num_sets)] 
+            #tags = [([(bin(0)[2:].zfill(self.tag_sz))]*associativity) for _ in range(num_sets)] 
+            tags = [([None]*associativity) for _ in range(num_sets)]
+            valid = [([0]*associativity) for _ in range(num_sets)] 
             #valid = [[(bin(0)[2:])]*associativity] * num_sets
             data = [([(bin(0)[2:].zfill(self.block_sz))]*associativity) for _ in range(num_sets)] 
             LRU = [[0 for __ in range(associativity)] for _ in range (num_sets)]
@@ -95,7 +96,6 @@ class direct_mapped():
         actual_tag = self.cache.cache.at[idx,'tag']
 
         tag2 = bin(tag)[2:].zfill(self.tag)
-        #print(f"act {actual_tag} tag: {tag2}")
         if actual_tag == tag2:
             self.hits += 1
             return True
@@ -119,8 +119,6 @@ class direct_mapped():
         if vb == 1:
             if not self._check_tag(index,tag):
                 self._input_data(address,index)
-            
-            #print(f"{address}:{self.cache[index][1:self.tag_bits+1]}")
         else:
             self._input_data(address,index)
     
@@ -170,28 +168,24 @@ class set_mapped():
     
     def _check_valid_bit(self,idx)-> bool:
         vb_arr = self.cache.cache.at[idx, 'valid']
-        #print(vb_arr)
         idx_arr = np.where(np.array(vb_arr) == 1)[0]
-        #print(np.where(vb_arr == 1)[0])
-        
+        #if at least one row in the set is valid
         if len(idx_arr) > 0:
             return True,idx_arr
         else:
             self.misses += 1
-            #self.cache.cache.at[idx, 'valid'] = [1]*len(vb_arr)
-            #print(self.cache.cache.at[idx, 'valid'])
             return False,idx_arr
 
-    def _find_tag(self,address)->int:
-        return int(address/(self.num_blocks*self.block_size))
+    def _find_tag(self,address)->str:
+        return bin(int(address/(self.num_blocks*self.block_size)))[2:].zfill(self.tag)
 
     def _lru_inc(self,idx):
         lru_arr = self.cache.cache.at[idx,'lru']
-        for idx,_ in enumerate(lru_arr):
-            inc = lru_arr[idx]+1
-            self.cache.cache.at[idx,'lru'][idx] = inc if inc < self.LRU_max else lru_arr[idx]
+        for id,_ in enumerate(lru_arr):
+            inc = lru_arr[id]+1
+            self.cache.cache.at[idx,'lru'][id] = inc if inc <= self.LRU_max else lru_arr[id]
 
-    def lru(self,tag,idx,addr,vb)->int:
+    def lru(self,tag,idx,addr)->int:
         #find lru value with the highest value
         #replace said value
         #increment all counters and ensure none go over max
@@ -199,11 +193,11 @@ class set_mapped():
         expired_idx = self.cache.cache.at[idx,'lru'].index(max(self.cache.cache.at[idx,'lru']))
         self.cache.cache.at[idx,'tag'][expired_idx] = tag
 
-        self._lru_inc(idx)
         self.cache.cache.at[idx,'lru'][expired_idx] = 0
-        print(self.cache.cache.at[idx,'data'])
-        self.cache.cache.at[idx,'data'][expired_idx] = addr if not vb else self.cache.cache.at[idx,'data'][expired_idx]
-        print(self.cache.cache.at[idx,'data'])
+        self._lru_inc(idx)
+       
+        self.cache.cache.at[idx,'data'][expired_idx] = addr
+
         return expired_idx
 
     #return the location in the block to replace
@@ -213,49 +207,77 @@ class set_mapped():
         self.cache.cache.at[idx,'data'][loc] = addr
         return loc
 
-    def replace(self,tag,idx,addr,vb):
-        #print(tag)
+    def replace(self,tag,idx,addr):
+
         new_vb_loc = 0
         if self.replacement_policy == 'LRU':
-            new_vb_loc=self.lru(tag,idx,addr,vb)
+            new_vb_loc=self.lru(tag,idx,addr)
         else:
             new_vb_loc=self.random(tag,idx,addr)
-        #print(self.cache.cache.at[idx,'valid'][new_vb_loc])
+
         self.cache.cache.at[idx,'valid'][new_vb_loc] = 1
 
-    def _check_tag(self,idx,tg,valid_locs,addr,vb) -> bool:
-        actual_tags = self.cache.cache.at[idx,'tag']
-        tag2 = bin(tg)[2:].zfill(self.tag)
-        idxs = np.where(np.array(actual_tags)==tag2)[0]
+    def _check_match(self,valid_hits,tag_matches):
+        var = False
+        x=[]
+        if len(tag_matches) > 0:
+            x=[i for i in valid_hits if i in tag_matches]
+            if len(x) > 0:
+                var = True
 
-        if len(idxs)> 0 and idxs[0] in valid_locs:
+        return var,x 
+    
+    def _check_tag(self,idx,tg,valid_locs,addr) -> bool:
+        actual_tags = self.cache.cache.at[idx,'tag']
+        
+        tag2 = tg
+        #print(f"act: {actual_tags}")
+        #print(f"tag2: {tag2}")
+        idxs = np.where(np.array(actual_tags)==tag2)[0]
+        #print(f"idxs {idxs} valid locs: {valid_locs}")
+
+        #valid locs is list of where the valid bit is set
+        #idxs is a list of indexes where the tags match
+        #check if at any location the tag matches and the valid bit is 1
+        #if this is the case then it is a hit
+        var,loc_hit = self._check_match(valid_locs,idxs)
+        print(var)
+        #if len(idxs)> 0 and idxs[0] == valid_locs[0]:
+        if var:
             self.hits += 1
+            print(f"addr hit {addr} loc: {loc_hit}")
             self._lru_inc(idx)
             return True
         else:
             self.misses += 1
             #replacement policy here
-            self.replace(tag2,idx,addr,vb)
+            self.replace(tag2,idx,addr)
 
             return False
     
     def set_read(self,address):
         block_addr = self._block_addr(address)
         index = int(self._index(block_addr))
-        tag = int(self._find_tag(address))
+        tag = (self._find_tag(address))
         vb,idx_arr = self._check_valid_bit(index)
-
+        print(f"address {address}")
+        #print(f"index in set read {index}")
+        print(f"tag in set read {tag}")
         if vb:
-            self._check_tag(index,tag,idx_arr,address,vb)
+            self._check_tag(index,tag,idx_arr,address)
         else:
             #tag,idx,addr
-            self.replace(tag,index,address,vb)
+            self.replace(tag,index,address)
     
     def read_all(self,addr_list):
         #[self.set_read(int(add,base=16)) for add in addr_list]
+        count = 0
         for addr in addr_list:
+            #print(int(addr,base=16))
             self.set_read(int(addr,base=16))
             print(self.cache.cache)
+            print(f"count: {count}")
+            count += 1
             input('enter outer loop')
 
         cache_reads = len(addr_list)
@@ -272,10 +294,6 @@ class set_mapped():
         print(f"Miss rate: {(miss_ratio*100):.2f}%")
 
         print(self.cache.cache)
-
-class associativity():
-    def __init__(self):
-        pass
 
 def read_addr_file(file):
     addr = pd.read_csv(file, delimiter=' ', header=None)
