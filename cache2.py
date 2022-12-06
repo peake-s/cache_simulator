@@ -294,15 +294,20 @@ def main(argv):
     associativity = int(args.associativity)
     hit_time = args.hit_time
     miss_time = args.miss_time
-    lru = int(args.lru)
-
+    lru = 0
+    try: 
+        lru = int(args.lru)
+    except(TypeError):
+        pass
 
     address_data = read_addr_file(args.input_file)
 
-    #dm = direct_mapped(block_size=block_size,num_blocks=num_block)
-    #dm.read_all(address_data)
-    sm = set_mapped(block_size=block_size,num_blocks=num_block,associativity=associativity,LRU = lru)
-    sm.read_all(address_data)
+    if associativity == 1:
+        dm = direct_mapped(block_size=block_size,num_blocks=num_block)
+        dm.read_all(address_data)
+    else:
+        sm = set_mapped(block_size=block_size,num_blocks=num_block,associativity=associativity,LRU = lru)
+        sm.read_all(address_data)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
