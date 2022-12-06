@@ -4,6 +4,8 @@ from random import randint
 import numpy as np
 import sys
 import argparse
+import warnings
+warnings.simplefilter(action='ignore',category=FutureWarning)
 
 class cache:
     def __init__(self,num_blocks,associativity,isz,tsz,off,bsz,replacement_policy=None):
@@ -33,10 +35,8 @@ class cache:
               'data': [(bin(0)[2:].zfill(self.block_sz)) for i in range(num_blocks)],
              }
         elif associativity > 1 and replacement_policy == 'LRU':
-            #tags = [([(bin(0)[2:].zfill(self.tag_sz))]*associativity) for _ in range(num_sets)] 
             tags = [([None]*associativity) for _ in range(num_sets)]
             valid = [([0]*associativity) for _ in range(num_sets)] 
-            #valid = [[(bin(0)[2:])]*associativity] * num_sets
             data = [([(bin(0)[2:].zfill(self.block_sz))]*associativity) for _ in range(num_sets)] 
             LRU = [[0 for __ in range(associativity)] for _ in range (num_sets)]
 
@@ -132,13 +132,14 @@ class direct_mapped():
         hit_ratio = self.hits/cache_reads
         miss_ratio = 1 - hit_ratio
 
+        print(f"cache size: {self.num_blocks*self.block_size}")
         print(f"Reads: {cache_reads}")
         print(f"Hits: {self.hits}")
         print(f"Misses: {self.misses}")
         print(f"Hit rate: {(hit_ratio*100):.2f}%")
         print(f"Miss rate: {(miss_ratio*100):.2f}%")
 
-        #print(self.cache.cache)
+        print(self.cache.cache)
 
 class set_mapped():
     def __init__(self,block_size =1, num_blocks =16,associativity=2, LRU = None):
@@ -149,7 +150,7 @@ class set_mapped():
         self.valid_bits = 1
         self.associativity = associativity
         self.replacement_policy = 'LRU' if self.associativity <= 4 or LRU == 1 else 'random'
-        self.LRU_max = associativity
+        self.LRU_max = associativity + 1
         self.block_size = block_size
         self.num_blocks = num_blocks
         self.hits = 0
@@ -177,7 +178,7 @@ class set_mapped():
             return False,idx_arr
 
     def _find_tag(self,address)->str:
-        return bin(int(address/(self.num_blocks*self.block_size)))[2:].zfill(self.tag)
+        return bin(int(address/(self.num_lines*self.block_size)))[2:].zfill(self.tag)
 
     def _lru_inc(self,idx):
         lru_arr = self.cache.cache.at[idx,'lru']
@@ -186,13 +187,9 @@ class set_mapped():
             self.cache.cache.at[idx,'lru'][id] = inc if inc <= self.LRU_max else lru_arr[id]
 
     def lru(self,tag,idx,addr)->int:
-        #find lru value with the highest value
-        #replace said value
-        #increment all counters and ensure none go over max
-        #reset counter of replaced to 0
-        expired_idx = self.cache.cache.at[idx,'lru'].index(max(self.cache.cache.at[idx,'lru']))
+        expired_idx = randint(0,self.associativity-1) if len(set(self.cache.cache.at[idx,'lru'])) == 1 else self.cache.cache.at[idx,'lru'].index(max(self.cache.cache.at[idx,'lru']))
+        
         self.cache.cache.at[idx,'tag'][expired_idx] = tag
-
         self.cache.cache.at[idx,'lru'][expired_idx] = 0
         self._lru_inc(idx)
        
@@ -228,25 +225,15 @@ class set_mapped():
         return var,x 
     
     def _check_tag(self,idx,tg,valid_locs,addr) -> bool:
-        actual_tags = self.cache.cache.at[idx,'tag']
-        
+        actual_tags = self.cache.cache.at[idx,'tag']        
         tag2 = tg
-        #print(f"act: {actual_tags}")
-        #print(f"tag2: {tag2}")
         idxs = np.where(np.array(actual_tags)==tag2)[0]
-        #print(f"idxs {idxs} valid locs: {valid_locs}")
-
-        #valid locs is list of where the valid bit is set
-        #idxs is a list of indexes where the tags match
-        #check if at any location the tag matches and the valid bit is 1
-        #if this is the case then it is a hit
         var,loc_hit = self._check_match(valid_locs,idxs)
-        print(var)
-        #if len(idxs)> 0 and idxs[0] == valid_locs[0]:
+    
         if var:
             self.hits += 1
-            print(f"addr hit {addr} loc: {loc_hit}")
-            self._lru_inc(idx)
+            if self.replacement_policy == 'LRU':
+                self._lru_inc(idx)
             return True
         else:
             self.misses += 1
@@ -260,9 +247,7 @@ class set_mapped():
         index = int(self._index(block_addr))
         tag = (self._find_tag(address))
         vb,idx_arr = self._check_valid_bit(index)
-        print(f"address {address}")
-        #print(f"index in set read {index}")
-        print(f"tag in set read {tag}")
+
         if vb:
             self._check_tag(index,tag,idx_arr,address)
         else:
@@ -270,15 +255,9 @@ class set_mapped():
             self.replace(tag,index,address)
     
     def read_all(self,addr_list):
-        #[self.set_read(int(add,base=16)) for add in addr_list]
-        count = 0
+        
         for addr in addr_list:
-            #print(int(addr,base=16))
             self.set_read(int(addr,base=16))
-            print(self.cache.cache)
-            print(f"count: {count}")
-            count += 1
-            input('enter outer loop')
 
         cache_reads = len(addr_list)
         self.results(cache_reads)
@@ -287,6 +266,7 @@ class set_mapped():
         hit_ratio = self.hits/cache_reads
         miss_ratio = 1 - hit_ratio
 
+        print(f"cache size: {self.num_blocks*self.block_size}")
         print(f"Reads: {cache_reads}")
         print(f"Hits: {self.hits}")
         print(f"Misses: {self.misses}")
@@ -315,6 +295,7 @@ def main(argv):
     hit_time = args.hit_time
     miss_time = args.miss_time
     lru = int(args.lru)
+
 
     address_data = read_addr_file(args.input_file)
 
