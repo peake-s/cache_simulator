@@ -132,7 +132,7 @@ class direct_mapped():
         hit_ratio = self.hits/cache_reads
         miss_ratio = 1 - hit_ratio
 
-        print(f"cache size: {self.num_blocks*self.block_size}")
+        print(f"cache size: {self.num_blocks*self.block_size} bytes")
         print(f"Reads: {cache_reads}")
         print(f"Hits: {self.hits}")
         print(f"Misses: {self.misses}")
@@ -266,7 +266,7 @@ class set_mapped():
         hit_ratio = self.hits/cache_reads
         miss_ratio = 1 - hit_ratio
 
-        print(f"cache size: {self.num_blocks*self.block_size}")
+        print(f"cache size: {self.num_blocks*self.block_size} bytes")
         print(f"Reads: {cache_reads}")
         print(f"Hits: {self.hits}")
         print(f"Misses: {self.misses}")
